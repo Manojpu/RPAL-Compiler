@@ -1,0 +1,9 @@
+LexicalAnalyzer==1.0.0
+Parser==1.0.0
+AST==1.0.0
+STGenerator==1.0.0
+CSEMachine==1.0.0
+Environment==1.0.0
+Evaluator==1.0.0
+Utils==1.0.0
+pytest==7.0.0

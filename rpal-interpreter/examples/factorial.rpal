@@ -1,0 +1,2 @@
+let Factorial(N) = if N eq 0 then 1 else N * Factorial(N - 1)
+in Print(Factorial(5))

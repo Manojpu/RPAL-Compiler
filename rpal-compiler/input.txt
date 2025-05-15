@@ -1,2 +1,0 @@
-// test.rpal
-let X = 5 in X + 3

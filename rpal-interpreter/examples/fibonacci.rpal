@@ -1,0 +1,4 @@
+let Fib(N) = N eq 0 -> 0
+    | N eq 1 -> 1
+    | Fib(N-1) + Fib(N-2)
+in Print(Fib(10))
