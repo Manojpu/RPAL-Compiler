@@ -41,6 +41,8 @@ class Evaluator:
             return self.evaluate_where(node)
         elif node.type == 'gamma':
             return self.evaluate_gamma(node)
+        elif node.type == '->':
+            return self.evaluate_conditional(node)
         else:
             raise Exception(f"Unknown node type: {node.type}")
 
@@ -110,6 +112,15 @@ class Evaluator:
         self.environment = old_env
         
         return result
+    def evaluate_conditional(self, node):
+        # node.children: [condition, then_branch, (optional) else_branch]
+        condition = self.evaluate(node.children[0])
+        if condition:
+            return self.evaluate(node.children[1])
+        elif len(node.children) > 2:
+            return self.evaluate(node.children[2])
+        else:
+            return None
 
     def process_function_definition(self, node, env):
         if node.type != 'function_form':
