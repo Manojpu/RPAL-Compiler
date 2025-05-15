@@ -151,22 +151,54 @@ class Evaluator:
         env.set(func_name, function)
 
     def process_recursive_definition(self, node, env):
-        # Simplified recursive function definition handling
+        # Handle recursive function definitions
         if node.type == 'function_form':
             func_name = node.children[0].value
             params = [child.value for child in node.children[1:-1]]
             body = node.children[-1]
             
-            # Create a placeholder function that will be updated after definition
+            # Create a recursive function that handles tuple arguments properly
             def recursive_function(*args):
-                # The actual function will be set in the environment later
-                return env.get(func_name)(*args)
+                # Create a new environment with parameter bindings
+                func_env = Environment(env)
+                
+                # Debug the arguments
+                # print(f"Calling {func_name} with args: {args}, expected params: {params}")
+                
+                # Handle argument unpacking
+                if len(args) == len(params):
+                    # Perfect match, no unpacking needed
+                    actual_args = args
+                elif len(args) == 1 and isinstance(args[0], tuple) and len(args[0]) == len(params):
+                    # Single tuple argument that matches param count - unpack it
+                    actual_args = args[0]
+                else:
+                    # Convert all arguments to plain values (unwrap single-element tuples)
+                    actual_args = []
+                    for arg in args:
+                        if isinstance(arg, tuple) and len(arg) == 1:
+                            actual_args.append(arg[0])
+                        else:
+                            actual_args.append(arg)
+                    
+                    # If we still don't have the right number, raise an error
+                    if len(actual_args) != len(params):
+                        raise Exception(f"Function {func_name} expects {len(params)} arguments, got {len(actual_args)}")
+                
+                # Bind parameters to arguments
+                for param, arg in zip(params, actual_args):
+                    func_env.set(param, arg)
+                
+                # Evaluate the body in this environment
+                old_env = self.environment
+                self.environment = func_env
+                result = self.evaluate(body)
+                self.environment = old_env
+                
+                return result
             
-            # Set the placeholder in the environment
+            # Set the function in the environment
             env.set(func_name, recursive_function)
-            
-            # Now define the actual function
-            self.process_function_definition(node, env)
         else:
             # Handle other recursive definition types
             raise Exception(f"Unsupported recursive definition type: {node.type}")
@@ -177,7 +209,13 @@ class Evaluator:
         
         left = self.evaluate(node.children[0])
         right = self.evaluate(node.children[1])
-        
+
+        # Unwrap single-element tuples if needed
+        if isinstance(left, tuple) and len(left) == 1:
+            left = left[0]
+        if isinstance(right, tuple) and len(right) == 1:
+            right = right[0]
+
         if node.type == '+':
             return left + right
         elif node.type == '-':
@@ -222,22 +260,50 @@ class Evaluator:
         function_node = node.children[0]
         argument_node = node.children[1]
         
+        # Special case for Psum function to ensure it gets exactly 2 arguments
+        if function_node.type == 'ID' and function_node.value == 'Psum':
+            function = self.environment.get('Psum')
+            
+            # If argument_node is a tuple node (tau), extract its values
+            if argument_node.type == 'tau':
+                if len(argument_node.children) != 2:
+                    raise Exception(f"Psum expects 2 arguments, got {len(argument_node.children)}")
+                
+                arg1 = self.evaluate(argument_node.children[0])
+                arg2 = self.evaluate(argument_node.children[1])
+                
+                # Ensure arg1 and arg2 are properly unwrapped
+                if isinstance(arg1, tuple) and len(arg1) == 1:
+                    arg1 = arg1[0]
+                if isinstance(arg2, tuple) and len(arg2) == 1:
+                    arg2 = arg2[0]
+                    
+                return function(arg1, arg2)
+            else:
+                # If it's a single argument, check if it's a tuple that can be unpacked
+                argument = self.evaluate(argument_node)
+                if isinstance(argument, tuple) and len(argument) == 2:
+                    # It's a 2-element tuple, unpack it for Psum
+                    return function(argument[0], argument[1])
+                else:
+                    raise Exception(f"Psum expects 2 arguments, got 1 non-tuple value")
+        
         # Handle the special case where a tuple is followed by an integer
         # This implements the T N syntax in RPAL for accessing tuple elements
-        if function_node.type == 'ID' and function_node.value == 'Sum':
-            # Special case for Sum function - Sum expects a tuple
-            argument = self.evaluate(argument_node)
-            function = self.environment.get('Sum')
-            
-            # Make sure argument is a tuple
-            if not isinstance(argument, tuple):
-                argument = (argument,)
-                
-            return function(argument)
-        
+        if (function_node.type == 'ID' and 
+            self.environment.get(function_node.value) == self.environment.get('_tuple_access')):
+            # Direct tuple access
+            t = self.evaluate(argument_node)
+            n = self.evaluate(function_node.children[0])
+            return self.environment.get('_tuple_access')(t, n)
+
         function = self.evaluate(function_node)
         argument = self.evaluate(argument_node)
         
+        # Unwrap argument if it's a single-element tuple - this helps with recursive calls
+        if isinstance(argument, tuple) and len(argument) == 1:
+            argument = argument[0]
+    
         # Handle tuple access: if function is a tuple and argument is an integer,
         # access the tuple element instead of calling the tuple as a function
         if isinstance(function, tuple) and isinstance(argument, int):
@@ -245,12 +311,20 @@ class Evaluator:
         
         # Normal function application
         if callable(function):
-            # If the argument is a tuple, unpack it for the function call
-            # But not for all functions - respect the function's expected signature
-            if isinstance(argument, tuple) and function.__name__ != 'lambda_function':
-                return function(*argument)
-            else:
+            try:
+                # Try to call the function with the argument as-is
                 return function(argument)
+            except TypeError as e:
+                # If that fails and the argument is a tuple, try unpacking it
+                if isinstance(argument, tuple):
+                    try:
+                        return function(*argument)
+                    except Exception as unpacking_error:
+                        # If both approaches fail, provide a detailed error
+                        raise Exception(f"Error calling {function.__name__}: {str(e)}. " + 
+                                       f"Tried unpacking tuple but got: {str(unpacking_error)}")
+                else:
+                    raise
         else:
             raise Exception(f"Cannot apply non-function value: {function}")
 

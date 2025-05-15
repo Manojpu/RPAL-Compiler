@@ -73,14 +73,41 @@ def add_built_ins(env):
 
     # Add Sum function that can work with the tuple format in sum.rpal
     def sum_function(tuple_arg):
-        # For sum.rpal, the sum function expects a tuple
+        # Handle different argument types
         if not isinstance(tuple_arg, tuple):
-            tuple_arg = (tuple_arg,)
+            # If it's not a tuple, just return it if it's a number
+            if isinstance(tuple_arg, (int, float)):
+                return tuple_arg
+            raise Exception(f"Sum expected a tuple or number, got {type(tuple_arg)}")
         
-        # Sum the elements of the tuple
-        result = sum(tuple_arg) if tuple_arg else 0
-        return result
-    
+        # If it's an empty tuple
+        if len(tuple_arg) == 0:
+            return 0
+        
+        # If it's a tuple with a single element
+        if len(tuple_arg) == 1:
+            element = tuple_arg[0]
+            if isinstance(element, tuple):
+                # Recursive call for nested tuples
+                return sum_function(element)
+            elif isinstance(element, (int, float)):
+                return element
+            else:
+                raise Exception(f"Cannot sum non-numeric element: {element}")
+        
+        # It's a tuple with multiple elements
+        total = 0
+        for element in tuple_arg:
+            if isinstance(element, tuple):
+                # Recursive call for nested tuples
+                total += sum_function(element)
+            elif isinstance(element, (int, float)):
+                total += element
+            else:
+                raise Exception(f"Cannot sum non-numeric element: {element}")
+        
+        return total
+
     env.set('Sum', sum_function)
 
 if __name__ == "__main__":
