@@ -43,7 +43,12 @@ def add_built_ins(env):
     env.set('ne', lambda x, y: x != y)
     
     # Add tuple access function - lets you get Nth element (1-based indexing)
-    def order(t):
+    def order(*args):
+        # If multiple arguments, treat as tuple
+        if len(args) > 1:
+            return len(args)
+        # If a single argument, check if it's a tuple
+        t = args[0]
         if isinstance(t, tuple):
             return len(t)
         return 1
