@@ -57,13 +57,16 @@ def add_built_ins(env):
     def tuple_access(t, n):
         if isinstance(t, tuple):
             if isinstance(n, int) and 1 <= n <= len(t):
-                return t[n-1]  # Convert to 0-based indexing
+                value = t[n-1]  # Convert to 0-based indexing
+                # Unwrap single-element tuples
+                while isinstance(value, tuple) and len(value) == 1:
+                    value = value[0]
+                return value
             raise Exception(f"Tuple index {n} out of bounds for tuple of length {len(t)}")
         if n == 1:
             return t
         raise Exception(f"Cannot access index {n} of non-tuple value")
-    
-    # Add these functions to the environment
+        # Add these functions to the environment
     env.set('Order', order)
     
     # Special handler for tuple elements

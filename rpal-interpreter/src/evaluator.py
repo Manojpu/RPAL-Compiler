@@ -210,12 +210,21 @@ class Evaluator:
         left = self.evaluate(node.children[0])
         right = self.evaluate(node.children[1])
 
-        # Unwrap single-element tuples if needed
-        if isinstance(left, tuple) and len(left) == 1:
-            left = left[0]
-        if isinstance(right, tuple) and len(right) == 1:
-            right = right[0]
+        def unwrap_value(value):
+            while isinstance(value, tuple):
+                if len(value) == 1:
+                    value = value[0]
+                elif len(value) > 1:
+                    # Use Sum to handle multi-element tuples
+                    return self.environment.get('Sum')(value) if 'Sum' in self.environment else sum(value)
+                else:
+                    raise Exception("Cannot perform arithmetic on empty tuple")
+            if not isinstance(value, (int, float)):
+                raise Exception(f"Cannot perform arithmetic on non-numeric value: {value}")
+            return value
 
+        left = unwrap_value(left)
+        right = unwrap_value(right)
         if node.type == '+':
             return left + right
         elif node.type == '-':
@@ -290,13 +299,15 @@ class Evaluator:
         
         # Handle the special case where a tuple is followed by an integer
         # This implements the T N syntax in RPAL for accessing tuple elements
-        if (function_node.type == 'ID' and 
-            self.environment.get(function_node.value) == self.environment.get('_tuple_access')):
-            # Direct tuple access
-            t = self.evaluate(argument_node)
-            n = self.evaluate(function_node.children[0])
-            return self.environment.get('_tuple_access')(t, n)
-
+        # Special case for Sum function
+        if function_node.type == 'ID' and function_node.value == 'Sum':
+            function = self.environment.get('Sum')
+            argument = self.evaluate(argument_node)
+            # Unwrap single-element tuple if necessary
+            if isinstance(argument, tuple) and len(argument) == 1:
+                argument = argument[0]
+            return function(argument)
+        
         function = self.evaluate(function_node)
         argument = self.evaluate(argument_node)
         
